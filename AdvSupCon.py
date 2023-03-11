@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 
 
@@ -71,7 +72,7 @@ class AsymAdvSupConLoss(nn.Module):
         feature_adv = feature_past.clone().detach()
         for i in range(iteration_steps):
             feature_adv.requires_grad = True
-            dist = torch.matmul(feature_adv, feature_past.T)
+            dist = torch.matmul(feature_adv, feature_cur.T)
             dist = dist.sum(axis = 1).mean()
             grad = torch.autograd.grad(dist, feature_adv, retain_graph=False, create_graph=False)[0]
             feature_adv = feature_adv.detach() - 4/255 * grad.sign()
