@@ -69,6 +69,7 @@ class AsymAdvSupConLoss(nn.Module):
         feature_past = features[past_task_idx].squeeze()
 
         
+        # add feature adveresarial attack
         feature_adv = feature_past.clone().detach()
         for i in range(iteration_steps):
             feature_adv.requires_grad = True
@@ -77,19 +78,15 @@ class AsymAdvSupConLoss(nn.Module):
             grad = torch.autograd.grad(dist, feature_adv, retain_graph=False, create_graph=False)[0]
             feature_adv = feature_adv.detach() - 4/255 * grad.sign()
             
-
-        # 
         anchor_feature[past_task_idx] = feature_adv
         contrast_feature[past_task_idx] = feature_adv
-
 
         anchor_dot_contrast = torch.div(
             torch.matmul(anchor_feature, contrast_feature.T),
             self.temperature)
-        # for numerical stability
+
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
         logits = anchor_dot_contrast - logits_max.detach()
-        # tile mask
 
         logits_mask = mask
         mask = mask.repeat(anchor_count, contrast_count)
@@ -101,10 +98,6 @@ class AsymAdvSupConLoss(nn.Module):
             0
         )
 
-        # mask = mask * logits_mask
-
-        # compute log_prob
-        
         exp_logits = torch.exp(logits) * logits_mask
         log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
 
@@ -112,14 +105,10 @@ class AsymAdvSupConLoss(nn.Module):
         mask = mask * cur_task_idx.reshape([-1,1])
         
         log_prob = log_prob[cur_task_idx]
-        mask_ = mask
         mask = mask[cur_task_idx]
-        # anchor_count = anchor_count[cur_task_idx]
         batch_size = cur_task_idx.sum()
 
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
-        # mean_log_prob_pos = mean_log_prob_pos * cur_task_idx.reshape([-1,1])
-        # mean_log_prob_pos[mean_log_prob_pos!=mean_log_prob_pos]
 
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
